@@ -7,16 +7,25 @@ pose = mp.solutions.pose.Pose(
     min_tracking_confidence=0.2
 )
 
-video = cv2.VideoCapture('film2.mp4')
+video = cv2.VideoCapture('film4.mp4')
 
-start_time = 8
+desired_width = 1500
+desired_height = 700
 
-video.set(cv2.CAP_PROP_POS_MSEC, start_time * 1000)
+original_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+original_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+frame_rate = int(video.get(cv2.CAP_PROP_FPS))  # Odczytaj framerate filmu
 
+new_width = desired_width
+new_height = int((original_height / original_width) * new_width)
+
+start_time = 0
 Ilosc_ruchow = 0
 previous_height = 0
-
 bmc_trajectory = []
+
+climbing_time = 0.0  # Inicjalizuj zmienną do śledzenia czasu wspinaczki
+climbing_start_frame = 0  # Inicjalizuj zmienną do śledzenia klatki początku wspinaczki
 
 while video.isOpened():
     ret, frame = video.read()
@@ -24,10 +33,7 @@ while video.isOpened():
     if not ret:
         break
 
-    frame_height, frame_width, _ = frame.shape
-    desired_width = 1920
-    desired_height = int(frame_height * (desired_width / frame_width))
-    frame = cv2.resize(frame, (desired_width, desired_height))
+    frame = cv2.resize(frame, (new_width, new_height))
 
     results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
@@ -42,11 +48,13 @@ while video.isOpened():
 
         current_height = bmc_y
 
-        scaled_bmc_x = int(bmc_x * desired_width)
-        scaled_bmc_y = int(bmc_y * desired_height)
+        scaled_bmc_x = int(bmc_x * new_width)
+        scaled_bmc_y = int(bmc_y * new_height)
 
         if previous_height > current_height:
             Ilosc_ruchow += 1
+            if climbing_start_frame == 0:
+                climbing_start_frame = int(video.get(cv2.CAP_PROP_POS_FRAMES))  # Zapisz klatkę początku wspinaczki
 
         previous_height = current_height
 
@@ -59,7 +67,12 @@ while video.isOpened():
                                                   mp.solutions.drawing_utils.DrawingSpec(color=(255, 0, 0), thickness=2,
                                                                                          circle_radius=2))
 
-    cv2.putText(frame, f'Ilosc ruchow: {Ilosc_ruchow}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    if climbing_start_frame > 0:
+        current_frame = int(video.get(cv2.CAP_PROP_POS_FRAMES))
+        climbing_time = (current_frame - climbing_start_frame) / frame_rate  # Oblicz czas na podstawie klatek i framerate
+
+    cv2.putText(frame, f'Ilość ruchów: {Ilosc_ruchow}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    cv2.putText(frame, f'Czas wspinaczki: {climbing_time:.2f} s', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     for i in range(1, len(bmc_trajectory)):
         cv2.line(frame, bmc_trajectory[i - 1], bmc_trajectory[i], (0, 0, 255), 2)
