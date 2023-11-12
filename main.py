@@ -11,13 +11,26 @@ pose = mp.solutions.pose.Pose(
 )
 
 # Inicjalizacja wideo
-video = cv2.VideoCapture('film4.mp4')
+video = cv2.VideoCapture('film3.mp4')
 
+# Odczyt pierwszej klatki
+ret, first_frame = video.read()
+
+# Wybór obszaru ROI na pierwszej klatce
+roi = cv2.selectROI('Wybierz obszar', first_frame, fromCenter=False, showCrosshair=True)
+cv2.destroyAllWindows()  # Zamknięcie okna ROI
+
+# Przytnij obszar ROI z pierwszej klatki
+x, y, w, h = roi
+first_frame_roi = first_frame[y:y+h, x:x+w]
+
+# Desired width and height
 desired_width = 1500
 desired_height = 700
 
-original_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
-original_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+# Calculate new dimensions based on the selected ROI
+original_width = w
+original_height = h
 frame_rate = int(video.get(cv2.CAP_PROP_FPS))
 
 new_width = desired_width
@@ -38,7 +51,9 @@ while video.isOpened():
     if not ret:
         break
 
-    frame = cv2.resize(frame, (new_width, new_height))
+    # Przytnij klatkę do obszaru ROI
+    frame_roi = frame[y:y+h, x:x+w]
+    frame = cv2.resize(frame_roi, (new_width, new_height))
 
     results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
@@ -102,7 +117,7 @@ while video.isOpened():
         current_frame = int(video.get(cv2.CAP_PROP_POS_FRAMES))
         climbing_time = (current_frame - climbing_start_frame) / frame_rate
 
-    cv2.putText(frame, f'Ilosc ruchww: {Ilosc_ruchow}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    cv2.putText(frame, f'Ilosc ruchow: {Ilosc_ruchow}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
     cv2.putText(frame, f'Czas wspinaczki: {climbing_time:.2f} s', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     for i in range(1, len(bmc_trajectory)):
@@ -113,15 +128,15 @@ while video.isOpened():
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# Po zakończeniu przetwarzania wideo i zamknięciu strumienia wideo
+# Stwórz listę czasu w sekundach
+time_in_seconds = [frame / frame_rate for frame in range(len(left_arm_angles))]
 
-# Plot both left and right arm angles on the same graph with different colors
-frames = list(range(len(left_arm_angles)))
-plt.plot(frames, left_arm_angles, label='Lewe ramie', color='blue')
-plt.plot(frames, right_arm_angles, label='Prawe ramie', color='red')
-plt.xlabel('Klatki')
+# Wykres kątów ramion z osią x w sekundach
+plt.plot(time_in_seconds, left_arm_angles, label='Lewe ramie', color='blue')
+plt.plot(time_in_seconds, right_arm_angles, label='Prawe ramie', color='red')
+plt.xlabel('Czas (s)')
 plt.ylabel('Kąt ramion')
-plt.title('Wykres kątu ramion')
+plt.title('Wykres kątów ramion')
 plt.legend()
 plt.show()
 
